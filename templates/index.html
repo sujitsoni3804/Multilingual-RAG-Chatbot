@@ -1,0 +1,899 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DocChatbot - AI Document Assistant</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='75' font-size='75'>💬</text></svg>">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Inter', sans-serif; background: #0f172a; color: #e2e8f0; overflow: hidden; }
+        
+        .sidebar { 
+            width: 240px; 
+            background: #1e293b; 
+            border-right: 1px solid #334155; 
+            display: flex; 
+            flex-direction: column; 
+            box-shadow: 2px 0 8px rgba(0,0,0,0.3); 
+        }
+        .sidebar-item { 
+            display: flex; 
+            align-items: center; 
+            padding: 12px 18px; 
+            cursor: pointer; 
+            transition: all 0.2s; 
+            margin: 4px 10px; 
+            border-radius: 8px; 
+        }
+        .sidebar-item:hover { background: #334155; }
+        .sidebar-item i { width: 20px; font-size: 16px; color: #94a3b8; margin-right: 12px; }
+        .sidebar-item span { color: #cbd5e1; font-size: 14px; font-weight: 500; }
+        .sidebar-item.active { background: #3b82f6; }
+        .sidebar-item.active i { color: #ffffff; }
+        .sidebar-item.active span { color: #ffffff; }
+        
+        .chat-container { 
+            display: flex; 
+            flex-direction: column; 
+            height: 100vh; 
+            background: #0f172a; 
+            position: relative;
+        }
+        .messages-area { 
+            flex: 1; 
+            overflow-y: auto; 
+            padding: 24px; 
+            max-width: 1100px; 
+            margin: 0 auto; 
+            width: 100%; 
+            padding-bottom: 200px;
+        }
+        
+        .message { 
+            display: flex; 
+            gap: 12px; 
+            margin-bottom: 24px; 
+            animation: slideIn 0.3s ease-out; 
+        }
+        @keyframes slideIn { 
+            from { opacity: 0; transform: translateY(10px); } 
+            to { opacity: 1; transform: translateY(0); } 
+        }
+        .message.user { flex-direction: row-reverse; }
+        .message-avatar { 
+            width: 36px; 
+            height: 36px; 
+            border-radius: 50%; 
+            flex-shrink: 0; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            font-size: 18px; 
+        }
+        .ai-avatar { background: #3b82f6; }
+        .user-avatar { background: #8b5cf6; }
+        .message-content { 
+            max-width: 80%; 
+            background: #1e293b; 
+            padding: 16px 20px; 
+            border-radius: 12px; 
+            line-height: 1.6; 
+            border: 1px solid #334155; 
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3); 
+            font-size: 15px;
+            color: #e2e8f0;
+        }
+        .message.user .message-content { 
+            background: #3b82f6; 
+            color: #ffffff; 
+            border-color: #3b82f6; 
+        }
+        
+        .input-area { 
+            position: fixed; 
+            bottom: 0; 
+            left: 240px; 
+            right: 0; 
+            border-top: 1px solid #334155; 
+            padding: 20px 24px; 
+            background: #1e293b; 
+            z-index: 100; 
+            box-shadow: 0 -2px 12px rgba(0,0,0,0.4); 
+        }
+        .input-wrapper { 
+            max-width: 1100px; 
+            margin: 0 auto; 
+            display: flex; 
+            gap: 12px; 
+            align-items: center; 
+        }
+        .input-field { 
+            flex: 1; 
+            background: #0f172a; 
+            border: 1px solid #334155; 
+            border-radius: 12px; 
+            padding: 14px 20px; 
+            color: #e2e8f0; 
+            outline: none; 
+            transition: all 0.2s; 
+            font-size: 15px; 
+        }
+        .input-field:focus { 
+            border-color: #3b82f6; 
+            background: #1e293b; 
+        }
+        .input-field::placeholder { color: #64748b; }
+        .input-field:disabled { opacity: 0.5; cursor: not-allowed; }
+        
+        .btn { 
+            padding: 12px 20px; 
+            border-radius: 12px; 
+            border: none; 
+            cursor: pointer; 
+            transition: all 0.2s; 
+            font-weight: 600; 
+            font-size: 14px; 
+        }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn-primary { 
+            background: #3b82f6; 
+            color: white; 
+        }
+        .btn-primary:hover:not(:disabled) { 
+            background: #2563eb; 
+            transform: translateY(-1px); 
+        }
+        .btn-icon { 
+            width: 44px; 
+            height: 44px; 
+            border-radius: 50%; 
+            background: #334155; 
+            color: #3b82f6; 
+            border: none; 
+            cursor: pointer; 
+            transition: all 0.2s; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            font-size: 16px; 
+        }
+        .btn-icon:hover:not(:disabled) { 
+            background: #475569; 
+        }
+        
+        .upload-zone { 
+            border: 2px dashed #475569; 
+            border-radius: 16px; 
+            padding: 60px 40px; 
+            text-align: center; 
+            transition: all 0.3s; 
+            cursor: pointer; 
+            background: #1e293b; 
+        }
+        .upload-zone:hover { 
+            border-color: #3b82f6; 
+            background: #334155; 
+        }
+        
+        .modal { 
+            display: none; 
+            position: fixed; 
+            top: 0; 
+            left: 0; 
+            width: 100%; 
+            height: 100%; 
+            background: rgba(0,0,0,0.7); 
+            align-items: center; 
+            justify-content: center; 
+            z-index: 1000; 
+        }
+        .modal.active { display: flex; }
+        .modal-content { 
+            background: #1e293b; 
+            border-radius: 16px; 
+            padding: 32px; 
+            max-width: 500px; 
+            width: 90%; 
+            border: 1px solid #334155;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.6); 
+        }
+        
+        .typing-indicator span { 
+            display: inline-block; 
+            width: 8px; 
+            height: 8px; 
+            border-radius: 50%; 
+            background: #3b82f6; 
+            margin: 0 3px; 
+            animation: bounce 1.4s infinite ease-in-out both; 
+        }
+        .typing-indicator span:nth-child(1) { animation-delay: -0.32s; }
+        .typing-indicator span:nth-child(2) { animation-delay: -0.16s; }
+        @keyframes bounce { 
+            0%, 80%, 100% { transform: scale(0); } 
+            40% { transform: scale(1); } 
+        }
+        
+        .progress-bar { 
+            height: 6px; 
+            background: #334155; 
+            border-radius: 10px; 
+            overflow: hidden; 
+        }
+        .progress-fill { 
+            height: 100%; 
+            background: #3b82f6; 
+            transition: width 0.3s; 
+        }
+        
+        ::-webkit-scrollbar { width: 10px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: #475569; }
+        
+        select { 
+            background: #0f172a; 
+            border: 1px solid #334155; 
+            border-radius: 12px; 
+            padding: 12px 16px; 
+            color: #e2e8f0; 
+            outline: none; 
+            width: 100%; 
+            font-size: 14px; 
+        }
+        select:focus { border-color: #3b82f6; }
+        
+        .header { 
+            display: flex; 
+            align-items: center; 
+            justify-content: space-between; 
+            padding: 18px 28px; 
+            border-bottom: 1px solid #334155; 
+            background: #1e293b; 
+        }
+        .logo { 
+            font-size: 20px; 
+            font-weight: 700; 
+            color: #e2e8f0; 
+        }
+        .doc-badge { 
+            background: #1e3a5f; 
+            padding: 8px 16px; 
+            border-radius: 20px; 
+            font-size: 14px; 
+            color: #93c5fd; 
+            display: flex; 
+            align-items: center; 
+            gap: 8px; 
+            border: 1px solid #2563eb; 
+            font-weight: 500; 
+        }
+        .doc-badge i { color: #60a5fa; }
+        
+        .empty-state { 
+            text-align: center; 
+            padding: 80px 40px; 
+        }
+        .empty-state i { 
+            font-size: 64px; 
+            color: #475569; 
+            margin-bottom: 20px; 
+        }
+        
+        .new-session-btn { 
+            margin-top: auto; 
+            border-top: 1px solid #334155; 
+            padding-top: 12px; 
+        }
+        
+        .doc-card { 
+            background: #1e293b; 
+            border: 1px solid #334155; 
+            border-radius: 12px; 
+            padding: 20px; 
+            margin-bottom: 16px; 
+            cursor: pointer; 
+            transition: all 0.2s; 
+        }
+        .doc-card:hover { 
+            border-color: #3b82f6; 
+            box-shadow: 0 4px 12px rgba(59,130,246,0.2); 
+        }
+        
+        .brand-container { 
+            display: flex; 
+            align-items: center; 
+            gap: 10px; 
+        }
+        .brand-icon { 
+            width: 36px; 
+            height: 36px; 
+            background: #3b82f6; 
+            border-radius: 8px; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            font-size: 18px; 
+        }
+        .brand-text { 
+            font-size: 16px; 
+            font-weight: 700; 
+            color: #e2e8f0; 
+        }
+        
+        @media (max-width: 768px) {
+            .sidebar { width: 64px; }
+            .sidebar-item span, .brand-text { display: none; }
+            .sidebar-item { margin: 4px 6px; padding: 12px; justify-content: center; }
+            .sidebar-item i { margin-right: 0; }
+            .input-area { left: 64px; }
+            .message-content { max-width: 85%; }
+        }
+    </style>
+</head>
+<body>
+    <div style="display: flex; height: 100vh;">
+        <aside class="sidebar">
+            <div style="padding: 18px 16px; border-bottom: 1px solid #334155;">
+                <div class="brand-container">
+                    <div class="brand-icon">💬</div>
+                    <span class="brand-text">DocChatbot</span>
+                </div>
+            </div>
+            
+            <div class="sidebar-item active" data-view="chat">
+                <i class="fas fa-comments"></i>
+                <span>Chat</span>
+            </div>
+            <div class="sidebar-item" data-view="upload">
+                <i class="fas fa-cloud-upload-alt"></i>
+                <span>Upload</span>
+            </div>
+            <div class="sidebar-item" data-view="documents">
+                <i class="fas fa-folder-open"></i>
+                <span>Documents</span>
+            </div>
+            
+            <div class="new-session-btn">
+                <div class="sidebar-item" id="new-session-btn">
+                    <i class="fas fa-plus-circle"></i>
+                    <span>New Session</span>
+                </div>
+            </div>
+        </aside>
+
+        <main style="flex: 1; display: flex; flex-direction: column; overflow: hidden;">
+            <header class="header">
+                <div class="logo">AI Document Assistant</div>
+                <div class="doc-badge" id="doc-badge" style="display: none;">
+                    <i class="fas fa-file-pdf"></i>
+                    <span id="doc-name-header">No document</span>
+                </div>
+            </header>
+
+            <div id="chat-view" class="chat-container">
+                <div class="messages-area" id="messages">
+                    <div class="empty-state" id="empty-state">
+                        <i class="fas fa-file-upload"></i>
+                        <h2 style="font-size: 28px; margin-bottom: 12px; font-weight: 700; color: #e2e8f0;">No Document Selected</h2>
+                        <p style="margin-bottom: 28px; color: #94a3b8; font-size: 15px;">Upload a document or select from your library to start chatting</p>
+                        <button class="btn btn-primary" onclick="switchToView('upload')" style="margin-right: 12px;">
+                            <i class="fas fa-upload" style="margin-right: 8px;"></i>Upload Document
+                        </button>
+                        <button class="btn" style="background: #334155; color: #cbd5e1;" onclick="switchToView('documents')">
+                            <i class="fas fa-folder-open" style="margin-right: 8px;"></i>Browse Documents
+                        </button>
+                    </div>
+                </div>
+                <div class="input-area">
+                    <form class="input-wrapper" id="chat-form">
+                        <button type="button" class="btn-icon" id="mic-btn" title="Voice input" disabled>
+                            <i class="fas fa-microphone"></i>
+                        </button>
+                        <input type="text" class="input-field" id="chat-input" placeholder="Select a document first..." autocomplete="off" disabled>
+                        <button type="submit" class="btn btn-primary" disabled style="border-radius: 50%; width: 44px; height: 44px; padding: 0;">
+                            <i class="fas fa-paper-plane"></i>
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <div id="upload-view" style="display: none; padding: 48px; overflow-y: auto; height: calc(100vh - 75px);">
+                <div style="max-width: 800px; margin: 0 auto;">
+                    <h1 style="font-size: 32px; margin-bottom: 12px; font-weight: 700;">Upload Document</h1>
+                    <p style="color: #94a3b8; margin-bottom: 40px; font-size: 15px;">Upload PDF files with OCR support for English, Hindi, and Gujarati</p>
+                    
+                    <form id="upload-form">
+                        <div class="upload-zone" id="upload-zone">
+                            <input type="file" id="file-input" accept=".pdf" style="display: none;">
+                            <i class="fas fa-cloud-upload-alt" style="font-size: 48px; color: #3b82f6; margin-bottom: 20px;"></i>
+                            <div id="file-display" style="font-size: 16px; color: #cbd5e1; margin-bottom: 8px; font-weight: 500;">Drop PDF here or click to browse</div>
+                            <div style="font-size: 14px; color: #64748b;">Maximum file size: 100MB</div>
+                        </div>
+
+                        <div id="progress-container" style="margin-top: 24px; display: none;">
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 14px; color: #94a3b8;">
+                                <span id="progress-text">Processing...</span>
+                                <span id="progress-percent">0%</span>
+                            </div>
+                            <div class="progress-bar">
+                                <div class="progress-fill" id="progress-bar" style="width: 0%;"></div>
+                            </div>
+                        </div>
+
+                        <button type="submit" class="btn btn-primary" id="upload-btn" style="width: 100%; margin-top: 24px; padding: 16px; font-size: 15px;">
+                            <i class="fas fa-upload" style="margin-right: 8px;"></i>Upload and Process
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <div id="documents-view" style="display: none; padding: 48px; overflow-y: auto; height: calc(100vh - 75px);">
+                <div style="max-width: 800px; margin: 0 auto;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 32px;">
+                        <h1 style="font-size: 32px; font-weight: 700;">Your Documents</h1>
+                        <button class="btn btn-primary" id="refresh-docs-btn">
+                            <i class="fas fa-sync-alt" style="margin-right: 8px;"></i>Refresh
+                        </button>
+                    </div>
+                    <div id="docs-list"></div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <div class="modal" id="speech-modal">
+        <div class="modal-content">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+                <h3 style="font-size: 20px; font-weight: 700;">🎤 Voice Input</h3>
+                <button class="btn-icon" id="close-modal-btn" style="width: 32px; height: 32px;">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+
+            <div style="margin-bottom: 20px;">
+                <label style="display: block; margin-bottom: 8px; font-size: 14px; color: #94a3b8; font-weight: 500;">Language</label>
+                <select id="speech-language">
+                    <option value="gujarati">🇮🇳 Gujarati</option>
+                    <option value="hindi">🇮🇳 Hindi</option>
+                    <option value="english">🇺🇸 English</option>
+                </select>
+            </div>
+
+            <button class="btn btn-primary" id="record-btn" style="width: 100%; padding: 16px; font-size: 15px;">
+                <i class="fas fa-microphone" style="margin-right: 8px;"></i>Start Recording
+            </button>
+
+            <div id="recording-status" style="text-align: center; margin-top: 16px; min-height: 20px; font-size: 14px; color: #94a3b8;"></div>
+            <div id="recording-timer" style="text-align: center; margin-top: 8px; font-size: 24px; font-weight: 700; color: #3b82f6;"></div>
+        </div>
+    </div>
+
+    <script>
+        const $ = id => document.getElementById(id);
+        const views = { chat: $('chat-view'), upload: $('upload-view'), documents: $('documents-view') };
+        const messages = $('messages');
+        const emptyState = $('empty-state');
+        const chatForm = $('chat-form');
+        const chatInput = $('chat-input');
+        const uploadForm = $('upload-form');
+        const fileInput = $('file-input');
+        const fileDisplay = $('file-display');
+        const uploadZone = $('upload-zone');
+        const uploadBtn = $('upload-btn');
+        const progressContainer = $('progress-container');
+        const progressBar = $('progress-bar');
+        const progressText = $('progress-text');
+        const progressPercent = $('progress-percent');
+        const docBadge = $('doc-badge');
+        const docNameHeader = $('doc-name-header');
+        const docsList = $('docs-list');
+        const refreshDocsBtn = $('refresh-docs-btn');
+        const newSessionBtn = $('new-session-btn');
+        const micBtn = $('mic-btn');
+        const speechModal = $('speech-modal');
+        const closeModalBtn = $('close-modal-btn');
+        const recordBtn = $('record-btn');
+        const speechLanguage = $('speech-language');
+        const recordingStatus = $('recording-status');
+        const recordingTimer = $('recording-timer');
+
+        let audioChunks = [], audioContext, startTime, timerInterval, isRecording = false, currentDoc = null, hasDocument = false;
+
+        function switchToView(viewName) {
+            document.querySelectorAll('.sidebar-item').forEach(i => i.classList.remove('active'));
+            document.querySelector(`[data-view="${viewName}"]`).classList.add('active');
+            Object.values(views).forEach(v => v.style.display = 'none');
+            views[viewName].style.display = viewName === 'chat' ? 'flex' : 'block';
+            if (viewName === 'documents') loadExistingDocuments();
+        }
+
+        document.querySelectorAll('.sidebar-item').forEach(item => {
+            item.addEventListener('click', () => {
+                const view = item.dataset.view;
+                if (view) switchToView(view);
+            });
+        });
+
+        window.switchToView = switchToView;
+
+        uploadZone.addEventListener('click', () => fileInput.click());
+        
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(ev => {
+            uploadZone.addEventListener(ev, e => { e.preventDefault(); e.stopPropagation(); });
+        });
+
+        uploadZone.addEventListener('drop', e => {
+            if (e.dataTransfer.files.length) {
+                fileInput.files = e.dataTransfer.files;
+                updateFileDisplay();
+            }
+        });
+
+        fileInput.addEventListener('change', updateFileDisplay);
+
+        function updateFileDisplay() {
+            if (fileInput.files?.length) {
+                fileDisplay.innerHTML = `<i class="fas fa-check-circle" style="color: #10b981; margin-right: 8px;"></i>${fileInput.files[0].name}`;
+            } else {
+                fileDisplay.textContent = 'Drop PDF here or click to browse';
+            }
+        }
+
+        uploadForm.addEventListener('submit', async e => {
+            e.preventDefault();
+            if (!fileInput.files?.length) return alert('Please select a file');
+            
+            const fd = new FormData();
+            fd.append('file', fileInput.files[0]);
+            uploadBtn.disabled = true;
+            progressContainer.style.display = 'block';
+
+            try {
+                const res = await fetch('/upload', { method: 'POST', body: fd });
+                if (!res.ok) throw new Error(`Server error: ${res.statusText}`);
+                const result = await res.json();
+                if (result.task_id) {
+                    listenToProgress(result.task_id, result.filename);
+                } else {
+                    throw new Error(result.error || 'Failed to start processing');
+                }
+            } catch (err) {
+                alert('Upload failed: ' + err.message);
+                uploadBtn.disabled = false;
+                progressContainer.style.display = 'none';
+            }
+        });
+
+        function listenToProgress(taskId, filename) {
+            const eventSource = new EventSource(`/process-status?id=${encodeURIComponent(taskId)}`);
+
+            eventSource.onmessage = e => {
+                const data = JSON.parse(e.data);
+                if (data.progress !== undefined) {
+                    progressBar.style.width = data.progress + '%';
+                    progressPercent.textContent = data.progress + '%';
+                }
+                if (data.message) progressText.textContent = data.message;
+            };
+
+            eventSource.addEventListener('complete', () => {
+                eventSource.close();
+                progressBar.style.width = '100%';
+                progressPercent.textContent = '100%';
+                progressText.textContent = 'Completed!';
+                setTimeout(() => {
+                    currentDoc = filename;
+                    docNameHeader.textContent = filename;
+                    docBadge.style.display = 'flex';
+                    enableChatInterface();
+                    switchToChat();
+                    addMessage('👋 Hello! Ask me anything about your document.', 'ai');
+                }, 800);
+            });
+
+            eventSource.onerror = () => {
+                eventSource.close();
+                alert('An error occurred during processing');
+                progressText.textContent = 'Error';
+                uploadBtn.disabled = false;
+            };
+        }
+
+        function switchToChat() {
+            switchToView('chat');
+            if (hasDocument) {
+                emptyState.style.display = 'none';
+            }
+        }
+
+        function enableChatInterface() {
+            hasDocument = true;
+            emptyState.style.display = 'none';
+            chatInput.disabled = false;
+            chatInput.placeholder = 'Send a message...';
+            micBtn.disabled = false;
+            chatForm.querySelector('button[type="submit"]').disabled = false;
+        }
+
+        function disableChatInterface() {
+            hasDocument = false;
+            emptyState.style.display = 'block';
+            messages.innerHTML = '';
+            messages.appendChild(emptyState);
+            chatInput.disabled = true;
+            chatInput.placeholder = 'Select a document first...';
+            chatInput.value = '';
+            micBtn.disabled = true;
+            chatForm.querySelector('button[type="submit"]').disabled = true;
+        }
+
+        chatForm.addEventListener('submit', async e => {
+            e.preventDefault();
+            const question = chatInput.value.trim();
+            if (!question || !hasDocument) return;
+
+            addMessage(question, 'user');
+            chatInput.value = '';
+            const aiMsg = addMessage('', 'ai', true);
+
+            try {
+                const res = await fetch('/ask', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ question })
+                });
+                if (!res.ok) throw new Error(`Server error: ${res.statusText}`);
+
+                const reader = res.body.getReader();
+                const decoder = new TextDecoder();
+                let text = '';
+                
+                while (true) {
+                    const { value, done } = await reader.read();
+                    if (done) break;
+                    text += decoder.decode(value, { stream: true });
+                    aiMsg.innerHTML = window.marked ? marked.parse(text) : text;
+                    messages.scrollTop = messages.scrollHeight;
+                }
+            } catch (err) {
+                aiMsg.innerHTML = `<span style="color: #ef4444;">Error: ${err.message}</span>`;
+            }
+        });
+
+        function addMessage(text, sender, isTyping = false) {
+            const msgDiv = document.createElement('div');
+            msgDiv.className = `message ${sender}`;
+            
+            const avatar = document.createElement('div');
+            avatar.className = `message-avatar ${sender === 'ai' ? 'ai-avatar' : 'user-avatar'}`;
+            avatar.textContent = sender === 'ai' ? '🤖' : '👤';
+            
+            const content = document.createElement('div');
+            content.className = 'message-content';
+            if (isTyping) {
+                content.innerHTML = '<div class="typing-indicator"><span></span><span></span><span></span></div>';
+            } else {
+                content.innerHTML = window.marked ? marked.parse(text) : text;
+            }
+            
+            msgDiv.appendChild(avatar);
+            msgDiv.appendChild(content);
+            messages.appendChild(msgDiv);
+            messages.scrollTop = messages.scrollHeight;
+            
+            return content;
+        }
+
+        async function loadExistingDocuments() {
+            docsList.innerHTML = '<div style="text-align: center; padding: 40px; color: #94a3b8;">Loading...</div>';
+            
+            try {
+                const res = await fetch('/get-documents');
+                const data = await res.json();
+                
+                if (data.success && data.documents?.length) {
+                    docsList.innerHTML = '';
+                    data.documents.forEach(doc => {
+                        const card = document.createElement('div');
+                        card.className = 'doc-card';
+                        
+                        const date = doc.last_accessed ? new Date(doc.last_accessed).toLocaleDateString() : 'Unknown';
+                        card.innerHTML = `
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <div style="flex: 1;">
+                                    <div style="font-weight: 600; margin-bottom: 8px; color: #e2e8f0; font-size: 16px;">${doc.filename}</div>
+                                    <div style="font-size: 14px; color: #94a3b8;">
+                                        <span style="text-transform: capitalize;">${doc.language}</span> • 
+                                        <span>${date}</span> • 
+                                        <span>${doc.chunk_count} chunks</span>
+                                    </div>
+                                </div>
+                                <button class="btn btn-primary" onclick="loadDocument('${doc.hash}', '${doc.filename}')">
+                                    <i class="fas fa-folder-open" style="margin-right: 8px;"></i>Open
+                                </button>
+                            </div>
+                        `;
+                        docsList.appendChild(card);
+                    });
+                } else {
+                    docsList.innerHTML = `
+                        <div class="empty-state">
+                            <i class="fas fa-folder-open"></i>
+                            <h3 style="font-size: 20px; margin-bottom: 8px; color: #e2e8f0; font-weight: 700;">No documents found</h3>
+                            <p style="margin-bottom: 20px; color: #94a3b8;">Upload your first document to get started</p>
+                            <button class="btn btn-primary" onclick="switchToView('upload')">
+                                <i class="fas fa-upload" style="margin-right: 8px;"></i>Upload Document
+                            </button>
+                        </div>
+                    `;
+                }
+            } catch (err) {
+                docsList.innerHTML = '<div style="text-align: center; padding: 40px; color: #ef4444;">Error loading documents</div>';
+            }
+        }
+
+        window.loadDocument = async (hash, filename) => {
+            try {
+                const res = await fetch('/load-document', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ hash })
+                });
+                const result = await res.json();
+                
+                if (result.success) {
+                    currentDoc = filename;
+                    docNameHeader.textContent = filename;
+                    docBadge.style.display = 'flex';
+                    enableChatInterface();
+                    switchToChat();
+                    addMessage('👋 Hello! Ask me anything about your document.', 'ai');
+                } else {
+                    alert('Failed to load document: ' + (result.error || 'Unknown error'));
+                }
+            } catch (err) {
+                alert('Failed to load document: ' + err.message);
+            }
+        };
+
+        newSessionBtn.addEventListener('click', async () => {
+            if (confirm('Start a new session? This will clear the current chat.')) {
+                try {
+                    await fetch('/clear', { method: 'POST' });
+                    location.reload();
+                } catch {
+                    location.reload();
+                }
+            }
+        });
+
+        refreshDocsBtn.addEventListener('click', loadExistingDocuments);
+
+        micBtn.addEventListener('click', () => speechModal.classList.add('active'));
+        closeModalBtn.addEventListener('click', () => {
+            if (isRecording) stopRecording();
+            speechModal.classList.remove('active');
+        });
+        recordBtn.addEventListener('click', () => isRecording ? stopRecording() : startRecording());
+
+        async function startRecording() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: { sampleRate: 16000, channelCount: 1 }});
+                audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
+                const source = audioContext.createMediaStreamSource(stream);
+                const processor = audioContext.createScriptProcessor(4096, 1, 1);
+                
+                audioChunks = [];
+                startTime = Date.now();
+                processor.onaudioprocess = e => audioChunks.push(new Float32Array(e.inputBuffer.getChannelData(0)));
+                source.connect(processor);
+                processor.connect(audioContext.destination);
+                
+                window.stream = stream;
+                window.processor = processor;
+                window.source = source;
+                
+                isRecording = true;
+                recordBtn.innerHTML = '<i class="fas fa-stop" style="margin-right: 8px;"></i>Stop Recording';
+                recordBtn.style.background = '#ef4444';
+                speechLanguage.disabled = true;
+                recordingStatus.textContent = '🔴 Recording...';
+                timerInterval = setInterval(() => recordingTimer.textContent = `${Math.floor((Date.now() - startTime) / 1000)}s`, 100);
+            } catch (error) {
+                recordingStatus.textContent = '❌ ' + error.message;
+            }
+        }
+
+        async function stopRecording() {
+            if (!window.processor) return;
+            clearInterval(timerInterval);
+            recordingTimer.textContent = '';
+            
+            const duration = (Date.now() - startTime) / 1000;
+            if (duration < 0.5) {
+                cleanup();
+                recordingStatus.textContent = '⚠️ Recording too short';
+                return;
+            }
+            
+            cleanup();
+            recordingStatus.innerHTML = '<div class="typing-indicator"><span></span><span></span><span></span></div>';
+            
+            const totalLength = audioChunks.reduce((acc, chunk) => acc + chunk.length, 0);
+            const audioData = new Float32Array(totalLength);
+            let offset = 0;
+            audioChunks.forEach(chunk => { audioData.set(chunk, offset); offset += chunk.length; });
+            
+            const int16Data = new Int16Array(audioData.length);
+            for (let i = 0; i < audioData.length; i++) {
+                const s = Math.max(-1, Math.min(1, audioData[i]));
+                int16Data[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+            }
+            
+            await sendAudioToServer(createWavBlob(int16Data, 16000));
+        }
+
+        function cleanup() {
+            window.processor.disconnect();
+            window.source.disconnect();
+            window.stream.getTracks().forEach(track => track.stop());
+            audioContext.close();
+            isRecording = false;
+            recordBtn.innerHTML = '<i class="fas fa-microphone" style="margin-right: 8px;"></i>Start Recording';
+            recordBtn.style.background = '#3b82f6';
+            speechLanguage.disabled = false;
+        }
+
+        function createWavBlob(samples, sampleRate) {
+            const buffer = new ArrayBuffer(44 + samples.length * 2);
+            const view = new DataView(buffer);
+            const writeString = (offset, string) => {
+                for (let i = 0; i < string.length; i++) view.setUint8(offset + i, string.charCodeAt(i));
+            };
+            
+            writeString(0, 'RIFF');
+            view.setUint32(4, 36 + samples.length * 2, true);
+            writeString(8, 'WAVE');
+            writeString(12, 'fmt ');
+            view.setUint32(16, 16, true);
+            view.setUint16(20, 1, true);
+            view.setUint16(22, 1, true);
+            view.setUint32(24, sampleRate, true);
+            view.setUint32(28, sampleRate * 2, true);
+            view.setUint16(32, 2, true);
+            view.setUint16(34, 16, true);
+            writeString(36, 'data');
+            view.setUint32(40, samples.length * 2, true);
+            
+            for (let i = 0; i < samples.length; i++) view.setInt16(44 + i * 2, samples[i], true);
+            return new Blob([buffer], { type: 'audio/wav' });
+        }
+
+        async function sendAudioToServer(audioBlob) {
+            const formData = new FormData();
+            formData.append('audio', audioBlob, 'audio.wav');
+            formData.append('language', speechLanguage.value);
+            
+            try {
+                const response = await fetch('/transcribe', { method: 'POST', body: formData });
+                const data = await response.json();
+                if (data.success && data.text) {
+                    chatInput.value = data.text;
+                    recordingStatus.textContent = '✅ Complete';
+                    setTimeout(() => speechModal.classList.remove('active'), 500);
+                } else {
+                    recordingStatus.textContent = '❌ ' + (data.error || 'No speech detected');
+                }
+            } catch (error) {
+                recordingStatus.textContent = '❌ ' + error.message;
+            }
+        }
+    </script>
+</body>
+</html>
